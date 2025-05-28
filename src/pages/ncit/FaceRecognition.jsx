@@ -1,4 +1,3 @@
-// FaceRecognition.js
 import React, { useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
 import { useNavigate } from "react-router-dom";
@@ -33,8 +32,7 @@ const FaceRecognition = () => {
   }, []);
 
   const getLabeledFaceDescriptions = async () => {
-    const labels = ["Adarsha", "Messi"]; // Example labels
-
+    const labels = ["Adarsha", "Messi"];
     return Promise.all(
       labels.map(async (label) => {
         const descriptions = [];
@@ -102,6 +100,8 @@ const FaceRecognition = () => {
           const box = resizedDetections[i].detection.box;
           const drawBox = new faceapi.draw.DrawBox(box, {
             label: result.toString(),
+            boxColor: result.toString() === "unknown" ? "#ff0000" : "#00ff00",
+            lineWidth: 3,
           });
           drawBox.draw(canvas);
           if (result.toString() !== "unknown") {
@@ -143,6 +143,7 @@ const FaceRecognition = () => {
         justifyContent: "center",
         alignItems: "center",
         height: "100vh",
+        background: "linear-gradient(135deg,#121212 60%,#1a1a2e 100%)",
       }}
     >
       <video
@@ -153,15 +154,19 @@ const FaceRecognition = () => {
         muted
         style={{
           position: "absolute",
-          borderRadius: "10px",
-          boxShadow: "0px 0px 10px rgba(255, 255, 255, 0.5)",
+          borderRadius: "18px",
+          boxShadow: "0 0 24px 0 #00ff00b0",
+          border: "4px solid #00ff00",
+          backgroundColor: "#000",
         }}
       />
       <canvas
         ref={canvasRef}
         style={{
           position: "absolute",
-          borderRadius: "10px",
+          borderRadius: "18px",
+          pointerEvents: "none",
+          boxShadow: "0 0 15px 0 #00ff0060",
         }}
       />
     </div>

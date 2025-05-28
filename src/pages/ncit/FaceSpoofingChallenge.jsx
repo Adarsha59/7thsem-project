@@ -1,13 +1,13 @@
-// FaceSpoofingChallenge.js
-import React, { useEffect, useRef, useState } from "react";
+"use client";
+import { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 
 // const CHALLENGE_EXPRESSIONS = ["happy", "sad", "angry", "surprised", "neutral"];
 const CHALLENGE_EXPRESSIONS = ["happy", "neutral"];
 
-const HOLD_DURATION = 1000; // ms
-const CHALLENGE_TIME = 10000; // ms
-const TOTAL_ROUNDS = 2; // Number of rounds for extra security
+const HOLD_DURATION = 1000;
+const CHALLENGE_TIME = 10000;
+const TOTAL_ROUNDS = 2;
 
 const FaceSpoofingChallenge = ({ onSuccess }) => {
   const videoRef = useRef(null);
@@ -27,7 +27,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
   const [challengeStep, setChallengeStep] = useState(1);
   const [round, setRound] = useState(1);
 
-  // Load models
   useEffect(() => {
     Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri("/models"),
@@ -36,11 +35,10 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
     ]);
   }, []);
 
-  // Timer effect
   useEffect(() => {
     if (!isRunning) return;
     if (timer <= 0) {
-      setResult(`Failed! You didn't complete round ${round} in time.`);
+      setResult(`⏰ Time's up! You didn't complete round ${round}.`);
       setTimeout(stopCamera, 2000);
       setIsRunning(false);
       return;
@@ -51,7 +49,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
     return () => clearInterval(interval);
   }, [isRunning, timer, round]);
 
-  // Start camera
   const startCamera = async () => {
     setResult(null);
     setCurrentExpression({ label: "-", confidence: 0 });
@@ -67,7 +64,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
     }, 600);
   };
 
-  // Stop camera
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -86,7 +82,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
     setRound(1);
   };
 
-  // Pick a random expression not in usedExpressions
   const issueChallenge = (used, roundNum) => {
     const available = CHALLENGE_EXPRESSIONS.filter((e) => !used.includes(e));
     const expr = available[Math.floor(Math.random() * available.length)];
@@ -98,7 +93,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
     detectChallenge(expr, used, roundNum);
   };
 
-  // Main challenge logic
   const detectChallenge = (targetExpr, used, roundNum) => {
     let animationId;
     let startTime = Date.now();
@@ -130,7 +124,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
           faceapi.resizeResults(detection, displaySize)
         );
 
-        // Find the most probable expression
         const expressions = detection.expressions;
         let maxLabel = null,
           maxVal = 0;
@@ -142,19 +135,15 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
         }
         setCurrentExpression({ label: maxLabel, confidence: maxVal });
 
-        // Check for current challenge
         if (maxLabel === targetExpr && maxVal > 0.6) {
           if (!holdStart) holdStart = Date.now();
           if (Date.now() - holdStart >= HOLD_DURATION && !challengeResolved) {
             challengeResolved = true;
             if (used.length === 1) {
-              // First challenge in round passed, issue second
               setChallengeStep(2);
               issueChallenge(used, roundNum);
             } else {
-              // Second challenge in round passed
               if (roundNum < TOTAL_ROUNDS) {
-                // Start next round
                 setResult(`✅ Round ${roundNum} complete! Next round...`);
                 setIsRunning(false);
                 setTimeout(() => {
@@ -164,7 +153,6 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
                   issueChallenge([], roundNum + 1);
                 }, 1500);
               } else {
-                // All rounds complete
                 setResult(`🎉 Success! Spoofing challenge passed.`);
                 setIsRunning(false);
                 setTimeout(() => {
@@ -182,10 +170,11 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
         holdStart = null;
       }
 
-      // If time runs out, fail
       if (Date.now() - startTime > CHALLENGE_TIME && !challengeResolved) {
         challengeResolved = true;
-        setResult(`Failed! You didn't complete round ${roundNum} in time.`);
+        setResult(
+          `⏰  Mr Robot Time's up! You didn't complete round ${roundNum}.`
+        );
         setIsRunning(false);
         setTimeout(stopCamera, 2000);
         return;
@@ -209,10 +198,33 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        height: "100vh",
-        background: "#f7f7f7",
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#f7f7f7 60%,#e0eaff 100%)",
+        fontFamily: "Inter, Arial, sans-serif",
+        padding: "1rem",
       }}
     >
+      {isRunning && (
+        <div
+          style={{
+            position: "absolute",
+            top: 30,
+            left: 0,
+            right: 0,
+            textAlign: "center",
+            zIndex: 10,
+            fontSize: "2.2rem",
+            fontWeight: "bold",
+            color: "#e00",
+            letterSpacing: "2px",
+            textShadow: "0 2px 12px #fff,0 0 2px #e00",
+            animation: "pulse 1s infinite",
+            userSelect: "none",
+          }}
+        >
+          {timer} <span style={{ fontSize: "1.1rem" }}>seconds left</span>
+        </div>
+      )}
       <div style={{ position: "relative" }}>
         <video
           ref={videoRef}
@@ -221,7 +233,11 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
           autoPlay
           muted
           playsInline
-          style={{ borderRadius: "10px", background: "#222" }}
+          style={{
+            borderRadius: "18px",
+            background: "#222",
+            boxShadow: "0 6px 24px #0002",
+          }}
         />
         <canvas
           ref={canvasRef}
@@ -232,6 +248,7 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
             left: 0,
             top: 0,
             pointerEvents: "none",
+            borderRadius: "18px",
           }}
         />
       </div>
@@ -240,43 +257,100 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
           position: "relative",
           zIndex: 2,
           background: "rgba(255,255,255,0.98)",
-          padding: "1.2rem",
-          borderRadius: "1rem",
-          marginTop: "1.5rem",
-          minWidth: 320,
+          padding: "2rem 2.5rem",
+          borderRadius: "1.5rem",
+          marginTop: "2rem",
+          minWidth: 380,
           textAlign: "center",
-          boxShadow: "0 2px 12px #0001",
+          boxShadow: "0 8px 32px #0001",
+          userSelect: "none",
         }}
       >
         {isRunning && (
-          <h3 style={{ margin: 0, color: "#e00" }}>
-            Timer: {timer} second{timer !== 1 ? "s" : ""}
-          </h3>
-        )}
-        {isRunning && (
-          <h4 style={{ margin: 0, color: "#0070f3" }}>
-            Round: {round} / {TOTAL_ROUNDS}
-          </h4>
+          <div
+            style={{
+              fontSize: "1.25rem",
+              fontWeight: "bold",
+              color: "#0070f3",
+              marginBottom: "0.5rem",
+              letterSpacing: "1px",
+            }}
+          >
+            Round <span style={{ fontSize: "1.5rem" }}>{round}</span> /{" "}
+            {TOTAL_ROUNDS}
+          </div>
         )}
         {!isCameraActive && !result && (
-          <button onClick={startCamera}>Start Camera</button>
+          <button
+            onClick={startCamera}
+            style={{
+              padding: "1rem 2.5rem",
+              fontSize: "1.3rem",
+              borderRadius: "0.7rem",
+              border: "none",
+              backgroundColor: "#0070f3",
+              color: "white",
+              cursor: "pointer",
+              boxShadow: "0 4px 20px rgba(0,112,243,0.16)",
+              fontWeight: 700,
+              letterSpacing: "1px",
+              transition: "background-color 0.3s",
+            }}
+            onMouseEnter={(e) =>
+              (e.currentTarget.style.backgroundColor = "#005bb5")
+            }
+            onMouseLeave={(e) =>
+              (e.currentTarget.style.backgroundColor = "#0070f3")
+            }
+          >
+            Start Camera
+          </button>
         )}
         {isCameraActive && challenge && !result && (
           <>
-            <h2>
-              {challengeStep === 1 ? `Please show: ` : `Now show: `}
-              <span style={{ color: "#0070f3" }}>{challenge}</span> expression
-              <br />
-              (Hold it for 1 second!)
-              <br />
-              <small>
-                You must complete both expressions in each round within 10
-                seconds.
-              </small>
-            </h2>
-            <div style={{ marginTop: "0.5rem" }}>
-              <b>Your expression:</b>{" "}
-              <span style={{ color: "#333" }}>
+            <div
+              style={{
+                fontSize: "1.3rem",
+                fontWeight: 700,
+                color: "#222",
+                marginBottom: "0.7rem",
+              }}
+            >
+              {challengeStep === 1 ? `Please show:` : `Now show:`}
+            </div>
+            <div
+              style={{
+                fontSize: "3.5rem",
+                fontWeight: "900",
+                color: "#ff4500",
+                textTransform: "capitalize",
+                display: "inline-block",
+                margin: "0.2rem 0",
+                animation: "bounce 1.4s infinite",
+                textShadow: "0 0 18px #ffd7c8, 0 0 8px #ff4500",
+                letterSpacing: "2px",
+              }}
+            >
+              {challenge}
+            </div>
+            <div
+              style={{
+                fontSize: "1.2rem",
+                color: "#555",
+                marginTop: "0.5rem",
+              }}
+            >
+              (Hold for <b>1 second</b>)
+            </div>
+            <div
+              style={{
+                marginTop: "1.2rem",
+                fontSize: "1.15rem",
+                fontWeight: 600,
+              }}
+            >
+              <span style={{ color: "#222" }}>Detected:</span>{" "}
+              <span style={{ color: "#0070f3" }}>
                 {currentExpression.label}{" "}
                 {currentExpression.confidence > 0
                   ? `(${(currentExpression.confidence * 100).toFixed(0)}%)`
@@ -285,8 +359,31 @@ const FaceSpoofingChallenge = ({ onSuccess }) => {
             </div>
           </>
         )}
-        {result && <h1>{result}</h1>}
+        {result && (
+          <h1
+            style={{
+              marginTop: "1.2rem",
+              color: result.startsWith("🎉") ? "green" : "#e00",
+              fontWeight: "bold",
+              fontSize: "1.5rem",
+              letterSpacing: "1px",
+            }}
+          >
+            {result}
+          </h1>
+        )}
       </div>
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.7; }
+          100% { opacity: 1; }
+        }
+        @keyframes bounce {
+          0%, 100% { transform: translateY(0);}
+          50% { transform: translateY(-16px);}
+        }
+      `}</style>
     </div>
   );
 };

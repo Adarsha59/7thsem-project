@@ -3,9 +3,10 @@ import React, { useState } from "react";
 import FaceSpoofingChallenge from "./ncit/FaceSpoofingChallenge.jsx";
 import FaceRecognition from "./ncit/FaceRecognition.jsx";
 
-const FaceAuthFlow = () => {
-  const [step, setStep] = useState("spoofing"); // "spoofing" or "recognition"
+// In your page/component
 
+export default function FaceAuthPage() {
+  const [step, setStep] = useState("spoofing");
   return (
     <>
       {step === "spoofing" && (
@@ -14,6 +15,4 @@ const FaceAuthFlow = () => {
       {step === "recognition" && <FaceRecognition />}
     </>
   );
-};
-
-export default FaceAuthFlow;
+}
