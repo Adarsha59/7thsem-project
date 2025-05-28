@@ -1,11 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+// FaceRecognition.js
+import React, { useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
 import { useNavigate } from "react-router-dom";
+
 const FaceRecognition = () => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const [isLive, setIsLive] = useState(false);
   const navigate = useNavigate();
+
   useEffect(() => {
     const loadModels = async () => {
       await Promise.all([
@@ -13,7 +15,7 @@ const FaceRecognition = () => {
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
         faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
       ]);
-      startWebcam(); // Start webcam after models are loaded
+      startWebcam();
     };
 
     const startWebcam = () => {
@@ -52,6 +54,9 @@ const FaceRecognition = () => {
   useEffect(() => {
     if (!videoRef.current) return;
 
+    let detectionTimer = null;
+    let intervalId = null;
+
     const handleVideoPlay = async () => {
       const labeledFaceDescriptors = await getLabeledFaceDescriptions();
       const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors);
@@ -61,12 +66,9 @@ const FaceRecognition = () => {
       const video = videoRef.current;
       canvas.width = video.width;
       canvas.height = video.height;
-      video.parentElement.append(canvas);
 
       const displaySize = { width: video.width, height: video.height };
       faceapi.matchDimensions(canvas, displaySize);
-
-      let detectionTimer = null;
 
       const stopWebcam = () => {
         const stream = videoRef.current?.srcObject;
@@ -104,30 +106,21 @@ const FaceRecognition = () => {
           drawBox.draw(canvas);
           if (result.toString() !== "unknown") {
             faceDetected = true;
-            matchedFace = result.toString();
-            console.log("matched face", matchedFace);
+            matchedFace = result.toString().split(" ")[0];
           }
         });
 
         if (faceDetected && matchedFace) {
-          console.log("Known Face Detected:", matchedFace);
-        } else {
-          console.log("Unknown Face Detected");
-        }
-
-        // After detecting the face, wait 5 seconds and then stop the webcam and navigate to the main page
-        if (!detectionTimer) {
-          detectionTimer = setTimeout(() => {
-            stopWebcam();
-            console.log("Stopping webcam and navigating to the main page...");
-            // window.location.href = "/";
-
-            navigate(`/face/${matchedFace}`, { state: { matchedFace } }); // Redirect to the main page
-          }, 5000); // 5 seconds before navigating
+          if (!detectionTimer) {
+            detectionTimer = setTimeout(() => {
+              stopWebcam();
+              navigate(`/face/${matchedFace}`, { state: { matchedFace } });
+            }, 5000);
+          }
         }
       };
 
-      const intervalId = setInterval(handleFaceDetection, 100);
+      intervalId = setInterval(handleFaceDetection, 100);
 
       videoRef.current.addEventListener("play", handleVideoPlay);
 
@@ -140,7 +133,7 @@ const FaceRecognition = () => {
 
     videoRef.current.addEventListener("play", handleVideoPlay);
     return () => videoRef.current?.removeEventListener("play", handleVideoPlay);
-  }, []);
+  }, [navigate]);
 
   return (
     <div

@@ -51,8 +51,14 @@ const WelcomePage = () => {
   }, [matchedFace]); // Dependency on name, it will re-run when name changes
 
   return (
-    <h1>
-      Welcome, {realname} door is {isLightOn}!
+    <h1
+      className="text-4xl font-bold text-white bg-gradient-to-r from-blue-500 to-purple-500 
+             shadow-lg rounded-lg p-4 text-center mx-auto mt-20 w-fit 
+             transition-transform transform hover:scale-105"
+    >
+      {realname && realname.toLowerCase() !== "unknown"
+        ? `Welcome, ${realname}! The door is ${isLightOn ? "Open" : "Closed"}!`
+        : "Hey! You are not authorized. The door is always closed for you!"}
     </h1>
   );
 };

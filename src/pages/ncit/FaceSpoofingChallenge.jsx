@@ -1,21 +1,22 @@
-"use client";
-import { useEffect, useRef, useState } from "react";
+// FaceSpoofingChallenge.js
+import React, { useEffect, useRef, useState } from "react";
 import * as faceapi from "face-api.js";
 
 // const CHALLENGE_EXPRESSIONS = ["happy", "sad", "angry", "surprised", "neutral"];
 const CHALLENGE_EXPRESSIONS = ["happy", "neutral"];
-const HOLD_DURATION = 1000; // ms to hold correct expression
-const CHALLENGE_TIME = 10000; // ms total challenge time
-const TOTAL_ROUNDS = 3; // Number of rounds for high security
 
-const FaceSpoofingChallenge = () => {
+const HOLD_DURATION = 1000; // ms
+const CHALLENGE_TIME = 10000; // ms
+const TOTAL_ROUNDS = 2; // Number of rounds for extra security
+
+const FaceSpoofingChallenge = ({ onSuccess }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
 
   const [isCameraActive, setIsCameraActive] = useState(false);
-  const [challenge, setChallenge] = useState(null); // current challenge
-  const [usedExpressions, setUsedExpressions] = useState([]); // expressions already used in this round
+  const [challenge, setChallenge] = useState(null);
+  const [usedExpressions, setUsedExpressions] = useState([]);
   const [result, setResult] = useState(null);
   const [timer, setTimer] = useState(CHALLENGE_TIME / 1000);
   const [isRunning, setIsRunning] = useState(false);
@@ -23,7 +24,7 @@ const FaceSpoofingChallenge = () => {
     label: "-",
     confidence: 0,
   });
-  const [challengeStep, setChallengeStep] = useState(1); // 1 or 2
+  const [challengeStep, setChallengeStep] = useState(1);
   const [round, setRound] = useState(1);
 
   // Load models
@@ -39,7 +40,7 @@ const FaceSpoofingChallenge = () => {
   useEffect(() => {
     if (!isRunning) return;
     if (timer <= 0) {
-      setResult(`Hey robot 🤖 (You didn't complete round ${round} in time)`);
+      setResult(`Failed! You didn't complete round ${round} in time.`);
       setTimeout(stopCamera, 2000);
       setIsRunning(false);
       return;
@@ -154,9 +155,7 @@ const FaceSpoofingChallenge = () => {
               // Second challenge in round passed
               if (roundNum < TOTAL_ROUNDS) {
                 // Start next round
-                setResult(
-                  `✅ Round ${roundNum} complete! Get ready for next...`
-                );
+                setResult(`✅ Round ${roundNum} complete! Next round...`);
                 setIsRunning(false);
                 setTimeout(() => {
                   setChallengeStep(1);
@@ -166,11 +165,11 @@ const FaceSpoofingChallenge = () => {
                 }, 1500);
               } else {
                 // All rounds complete
-                setResult(
-                  `🎉 Hi user 👋 (You completed all ${TOTAL_ROUNDS} rounds successfully!)`
-                );
+                setResult(`🎉 Success! Spoofing challenge passed.`);
                 setIsRunning(false);
-                setTimeout(stopCamera, 3000);
+                setTimeout(() => {
+                  if (onSuccess) onSuccess();
+                }, 1500);
               }
             }
             return;
@@ -186,9 +185,7 @@ const FaceSpoofingChallenge = () => {
       // If time runs out, fail
       if (Date.now() - startTime > CHALLENGE_TIME && !challengeResolved) {
         challengeResolved = true;
-        setResult(
-          `Hey robot 🤖 (You didn't complete round ${roundNum} in time)`
-        );
+        setResult(`Failed! You didn't complete round ${roundNum} in time.`);
         setIsRunning(false);
         setTimeout(stopCamera, 2000);
         return;
