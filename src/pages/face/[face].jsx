@@ -1,65 +1,67 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios"; // Make sure to import axios
-import { useLocation } from "react-router-dom";
+import axios from "axios";
+import { useLocation, useParams } from "react-router-dom";
 
 const WelcomePage = () => {
   const location = useLocation();
+  const params = useParams();
+  const matchedFace = location.state?.matchedFace || params.matchedFace;
 
-  const { matchedFace } = location.state || {};
   const [isLightOn, setIsLightOn] = useState(false);
-  const [realname, setrealname] = useState(null);
+  const [realname, setRealname] = useState(null);
+
   useEffect(() => {
-    const doZero = async () => {
-      try {
-        if (matchedFace == null) {
-          return; // If no matched face, return
-        }
-        const name = matchedFace.split(" ")[0];
-        setrealname(name);
-        if (name && name !== "unknown") {
-          // Send signal 1
-          const response1 = await axios.post("http://localhost:3001/send", {
+    const openDoor = async () => {
+      if (!matchedFace) {
+        console.warn("No matchedFace");
+        return;
+      }
+
+      const name = matchedFace.trim();
+      setRealname(name);
+
+      if (name.toLowerCase() !== "unknown" && name !== "") {
+        try {
+          const resOn = await axios.post("http://localhost:3001/send", {
             signal: "1",
           });
-          if (response1.data.success) {
-            console.log("Light On");
+          if (resOn.data.success) {
             setIsLightOn(true);
-
-            // After 5 seconds, send signal 0
             setTimeout(async () => {
-              const response2 = await axios.post("http://localhost:3001/send", {
+              const resOff = await axios.post("http://localhost:3001/send", {
                 signal: "0",
               });
-              if (response2.data.success) {
-                console.log("Light Off");
-                setIsLightOn(false);
-              }
-            }, 5000); // Send signal 0 after 5 seconds
+              if (resOff.data.success) setIsLightOn(false);
+            }, 4800);
           }
+        } catch (err) {
+          console.error("Error controlling light", err);
         }
-      } catch (error) {
-        console.error(
-          "Error occurred while trying to control the light",
-          error
-        );
-        alert("Error occurred while trying to control the light.");
       }
     };
 
-    // Run the function when the component loads
-    doZero();
-  }, [matchedFace]); // Dependency on name, it will re-run when name changes
+    openDoor();
+  }, [matchedFace]);
 
   return (
-    <h1
-      className="text-4xl font-bold text-white bg-gradient-to-r from-blue-500 to-purple-500 
-             shadow-lg rounded-lg p-4 text-center mx-auto mt-20 w-fit 
-             transition-transform transform hover:scale-105"
-    >
-      {realname && realname.toLowerCase() !== "unknown"
-        ? `Welcome, ${realname}! The door is ${isLightOn ? "Open" : "Closed"}!`
-        : "Hey! You are not authorized. The door is always closed for you!"}
-    </h1>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 text-white">
+      {realname && realname.toLowerCase() !== "unknown" ? (
+        <div className="bg-black bg-opacity-40 rounded-xl shadow-2xl p-10 text-center">
+          <h1 className="text-5xl font-extrabold mb-4">Welcome, {realname}!</h1>
+          <p className="text-2xl">
+            The door is{" "}
+            <span className="font-bold">
+              {isLightOn ? "Open ✅" : "Closed 🔒"}
+            </span>
+          </p>
+        </div>
+      ) : (
+        <div className="bg-black bg-opacity-40 rounded-xl shadow-2xl p-10 text-center">
+          <h1 className="text-4xl font-bold mb-2">Access Denied 🚫</h1>
+          <p className="text-xl">You are not authorized.</p>
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -1,18 +1,19 @@
-// FaceAuthFlow.js
 import React, { useState } from "react";
-import FaceSpoofingChallenge from "./ncit/FaceSpoofingChallenge.jsx";
-import FaceRecognition from "./ncit/FaceRecognition.jsx";
+import FaceSpoofingChallenge from "./ncit/FaceSpoofingChallenge";
+import FaceRecognition from "./ncit/FaceAuthFlow";
 
-// In your page/component
+const FaceEntryFlow = () => {
+  const [passedSpoofing, setPassedSpoofing] = useState(false);
 
-export default function FaceAuthPage() {
-  const [step, setStep] = useState("spoofing");
   return (
-    <>
-      {step === "spoofing" && (
-        <FaceSpoofingChallenge onSuccess={() => setStep("recognition")} />
+    <div>
+      {!passedSpoofing ? (
+        <FaceSpoofingChallenge onSuccess={() => setPassedSpoofing(true)} />
+      ) : (
+        <FaceRecognition />
       )}
-      {step === "recognition" && <FaceRecognition />}
-    </>
+    </div>
   );
-}
+};
+
+export default FaceEntryFlow;

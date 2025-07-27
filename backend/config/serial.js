@@ -1,39 +1,57 @@
 const { SerialPort } = require("serialport");
 const { ByteLengthParser } = require("@serialport/parser-byte-length");
 
-const serialPort = new SerialPort(
-  {
-    path: "/dev/ttyACM0", // Ensure this is correct
-    baudRate: 9600,
-    dataBits: 8,
-    parity: "none",
-    stopBits: 1,
-    autoOpen: false,
-  },
-  (err) => {
-    if (err) {
-      console.error("Error opening serial port:", err.message);
-    }
-  }
-);
+const serialPort = new SerialPort({
+  path: "/dev/ttyACM0",
+  baudRate: 9600,
+});
 
 const parser = new ByteLengthParser({ length: 1 });
 serialPort.pipe(parser);
 
-let lastReceivedData = ""; // Store last received data
+let lastKey = "";
+let inputBuffer = "";
+let enterPressed = false;
 
-// Listen for incoming serial data
-// parser.on("data", (data) => {
-//   lastReceivedData += data.toString();
-//   console.log("Received from Serial:", lastReceivedData);
-// });
+parser.on("data", (data) => {
+  const key = data.toString().trim();
+  if (!key) return;
 
-serialPort.open((err) => {
-  if (err) {
-    console.error("Error opening serial port:", err.message);
+  lastKey = key;
+  console.log("Keypad Key Received:", key);
+
+  if (key === "*" || key === "#") {
+    console.log("Clear input buffer.");
+    inputBuffer = "";
+    enterPressed = false; // Also clear enter flag when clearing
+  } else if (key.toUpperCase() === "D") {
+    console.log("ENTER key pressed.");
+    enterPressed = true;
+    // Don't clear the buffer yet — let frontend grab it.
   } else {
-    console.log("Serial Port Opened Successfully!");
+    inputBuffer += key;
   }
 });
-// console.log("object received:", newdata);
-module.exports = { serialPort, lastReceivedData };
+
+serialPort.on("open", () => {
+  console.log("Serial Port Opened Successfully!");
+});
+
+serialPort.on("error", (err) => {
+  console.error("Serial Port Error:", err);
+});
+
+module.exports = {
+  getLastKey: () => lastKey,
+  getInputBuffer: () => inputBuffer,
+  getEnterPressed: () => enterPressed,
+  clearEnter: () => {
+    enterPressed = false;
+    // Don't clear inputBuffer here - let the frontend handle it
+  },
+  clearBuffer: () => {
+    inputBuffer = "";
+    enterPressed = false;
+  },
+  serialPort, // 👈 ADD THI
+};

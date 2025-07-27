@@ -1,83 +1,105 @@
 import React, { useEffect, useRef } from "react";
 import * as faceapi from "face-api.js";
-import { useNavigate } from "react-router-dom";
 
-const FaceRecognition = () => {
+const NO_FACE_TIMEOUT = 5000;
+
+const FaceRecognition = ({ onFaceMatched }) => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-  const navigate = useNavigate();
 
   useEffect(() => {
-    const loadModels = async () => {
+    let lastFaceTime = Date.now();
+    let stopped = false;
+    let intervalId = null;
+    let detectionTimer = null;
+
+    const stopWebcam = () => {
+      stopped = true;
+      if (videoRef.current?.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach((t) => t.stop());
+        videoRef.current.srcObject = null;
+      }
+    };
+
+    const getLabeledFaceDescriptions = async () => {
+      try {
+        const res = await fetch("http://localhost:3001/api/users/labels");
+        const data = await res.json();
+        if (!data.success) {
+          console.error("Labels API failed:", data);
+          return [];
+        }
+        const labeledDescriptors = await Promise.all(
+          data.labels.map(async ({ name }) => {
+            const descriptors = [];
+            for (let i = 1; i <= 3; i++) {
+              const imgUrl = `http://localhost:3001/uploads/${encodeURIComponent(
+                name
+              )}/${i}.png`;
+              try {
+                const img = await faceapi.fetchImage(imgUrl);
+                const detection = await faceapi
+                  .detectSingleFace(img)
+                  .withFaceLandmarks()
+                  .withFaceDescriptor();
+                if (detection) descriptors.push(detection.descriptor);
+              } catch (e) {
+                console.warn(`Failed loading ${imgUrl}`, e);
+              }
+            }
+            if (descriptors.length === 0) return null;
+            return new faceapi.LabeledFaceDescriptors(name, descriptors);
+          })
+        );
+        return labeledDescriptors.filter(Boolean);
+      } catch (e) {
+        console.error(e);
+        return [];
+      }
+    };
+
+    const startRecognition = async () => {
       await Promise.all([
         faceapi.nets.ssdMobilenetv1.loadFromUri("/models"),
         faceapi.nets.faceRecognitionNet.loadFromUri("/models"),
         faceapi.nets.faceLandmark68Net.loadFromUri("/models"),
       ]);
-      startWebcam();
-    };
 
-    const startWebcam = () => {
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: false })
-        .then((stream) => {
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-        })
-        .catch((error) => console.error("Error accessing webcam:", error));
-    };
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        if (stopped) return;
+        videoRef.current.srcObject = stream;
+        await new Promise((res) => (videoRef.current.onloadedmetadata = res));
+        videoRef.current.play();
+      } catch (e) {
+        console.error("Webcam error", e);
+        return;
+      }
 
-    loadModels();
-  }, []);
+      if (!videoRef.current || !canvasRef.current) return;
 
-  const getLabeledFaceDescriptions = async () => {
-    const labels = ["Adarsha", "Messi"];
-    return Promise.all(
-      labels.map(async (label) => {
-        const descriptions = [];
-        const img = await faceapi.fetchImage(`/labels/${label}/1.png`);
-        const detections = await faceapi
-          .detectSingleFace(img)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-        if (detections) {
-          descriptions.push(detections.descriptor);
-        }
-        return new faceapi.LabeledFaceDescriptors(label, descriptions);
-      })
-    );
-  };
-
-  useEffect(() => {
-    if (!videoRef.current) return;
-
-    let detectionTimer = null;
-    let intervalId = null;
-
-    const handleVideoPlay = async () => {
-      const labeledFaceDescriptors = await getLabeledFaceDescriptions();
-      const faceMatcher = new faceapi.FaceMatcher(labeledFaceDescriptors);
-
-      if (!canvasRef.current || !videoRef.current) return;
-      const canvas = canvasRef.current;
       const video = videoRef.current;
+      const canvas = canvasRef.current;
       canvas.width = video.width;
       canvas.height = video.height;
 
       const displaySize = { width: video.width, height: video.height };
       faceapi.matchDimensions(canvas, displaySize);
 
-      const stopWebcam = () => {
-        const stream = videoRef.current?.srcObject;
-        if (stream) {
-          const tracks = stream.getTracks();
-          tracks.forEach((track) => track.stop());
-        }
-        videoRef.current.srcObject = null;
-      };
+      const labeledDescriptors = await getLabeledFaceDescriptions();
+      if (labeledDescriptors.length === 0) {
+        console.warn("No labeled faces");
+        stopWebcam();
+        return;
+      }
 
-      const handleFaceDetection = async () => {
+      const faceMatcher = new faceapi.FaceMatcher(labeledDescriptors);
+
+      intervalId = setInterval(async () => {
+        if (stopped) return;
+
         const detections = await faceapi
           .detectAllFaces(video, new faceapi.SsdMobilenetv1Options())
           .withFaceLandmarks()
@@ -90,71 +112,79 @@ const FaceRecognition = () => {
         const ctx = canvas.getContext("2d");
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        const results = resizedDetections.map((d) =>
-          faceMatcher.findBestMatch(d.descriptor)
-        );
-
         let faceDetected = false;
-        let matchedFace = null;
-        results.forEach((result, i) => {
-          const box = resizedDetections[i].detection.box;
-          const drawBox = new faceapi.draw.DrawBox(box, {
-            label: result.toString(),
-            boxColor: result.toString() === "unknown" ? "#ff0000" : "#00ff00",
+        let matchedName = null;
+
+        resizedDetections.forEach((det) => {
+          const bestMatch = faceMatcher.findBestMatch(det.descriptor);
+          new faceapi.draw.DrawBox(det.detection.box, {
+            label: bestMatch.toString(),
+            boxColor: bestMatch.label === "unknown" ? "#ff0000" : "#00ff00",
             lineWidth: 3,
-          });
-          drawBox.draw(canvas);
-          if (result.toString() !== "unknown") {
+          }).draw(canvas);
+
+          if (bestMatch.label !== "unknown") {
             faceDetected = true;
-            matchedFace = result.toString().split(" ")[0];
+            matchedName = bestMatch.label;
           }
         });
 
-        if (faceDetected && matchedFace) {
+        if (faceDetected && matchedName) {
+          lastFaceTime = Date.now();
           if (!detectionTimer) {
             detectionTimer = setTimeout(() => {
               stopWebcam();
-              navigate(`/face/${matchedFace}`, { state: { matchedFace } });
-            }, 5000);
+              onFaceMatched(matchedName); // report face match here
+            }, 2000); // wait 2 sec stable
+          }
+        } else {
+          if (detectionTimer) {
+            clearTimeout(detectionTimer);
+            detectionTimer = null;
           }
         }
-      };
+      }, 200);
 
-      intervalId = setInterval(handleFaceDetection, 100);
-
-      videoRef.current.addEventListener("play", handleVideoPlay);
-
-      return () => {
-        clearInterval(intervalId);
-        clearTimeout(detectionTimer);
-        stopWebcam();
-      };
+      const noFaceCheck = setInterval(() => {
+        if (Date.now() - lastFaceTime > NO_FACE_TIMEOUT) {
+          stopWebcam();
+          clearInterval(intervalId);
+          clearInterval(noFaceCheck);
+          if (detectionTimer) clearTimeout(detectionTimer);
+        }
+      }, 500);
     };
 
-    videoRef.current.addEventListener("play", handleVideoPlay);
-    return () => videoRef.current?.removeEventListener("play", handleVideoPlay);
-  }, [navigate]);
+    startRecognition();
+
+    return () => {
+      stopped = true;
+      if (intervalId) clearInterval(intervalId);
+      if (detectionTimer) clearTimeout(detectionTimer);
+      stopWebcam();
+    };
+  }, [onFaceMatched]);
 
   return (
     <div
       style={{
         position: "relative",
+        height: "100vh",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        height: "100vh",
         background: "linear-gradient(135deg,#121212 60%,#1a1a2e 100%)",
       }}
     >
       <video
         ref={videoRef}
-        width="600"
-        height="450"
+        width={600}
+        height={450}
         autoPlay
         muted
         style={{
           position: "absolute",
-          borderRadius: "18px",
+          borderRadius: 18,
           boxShadow: "0 0 24px 0 #00ff00b0",
           border: "4px solid #00ff00",
           backgroundColor: "#000",
@@ -162,9 +192,11 @@ const FaceRecognition = () => {
       />
       <canvas
         ref={canvasRef}
+        width={600}
+        height={450}
         style={{
           position: "absolute",
-          borderRadius: "18px",
+          borderRadius: 18,
           pointerEvents: "none",
           boxShadow: "0 0 15px 0 #00ff0060",
         }}
