@@ -582,9 +582,14 @@ Response:
 
 **Adarsha Paudyal** (201101)  
 _Project Lead & Full-Stack Developer_
-Shyam Khatri Kshetri
-Arjun Prasad Chaulagain
-Manish Poudel
+
+<div style="text-align: center;">
+  
+  Shyam Khatri Kshetri<br>
+  Arjun Prasad Chaulagain<br>
+  Manish Poudel
+</div>
+
 📧 Email: code.adarsha@gmail.com  
 🔗 GitHub: [github.com/Adarsha59](https://github.com/Adarsha59/)  
 🏫 Institution: Nepal College of Information Technology  
